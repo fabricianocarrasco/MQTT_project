@@ -13,9 +13,10 @@ def create_connection():
         return conn
     except Error as e:
         print(e)
-    finally:
-        if conn:
-            conn.close()
+    # finally:
+        # if conn:
+            
+            # conn.close()
 
 def create_table(conn,create_table_sql):
     """ create a table from the create_table_sql statement
@@ -26,16 +27,17 @@ def create_table(conn,create_table_sql):
     try:
         c = conn.cursor()
         c.execute(create_table_sql)
+        print('Table created!')
     except Error as e:
         print(e)
 
 if __name__ == '__main__':
     conn = create_connection()
-    sql_create_iot_table = """ CREATE TABLE IF NOT EXISTS iot (
+    sql_create_iot_table = """ CREATE TABLE IF NOT EXISTS iot(
                                         id text PRIMARY KEY,
-                                        sensor text,
-                                        type text,
-                                        timestamp integer,
-                                        valor integer
+                                        sensor_id text,
+                                        sensor_type text,
+                                        value integer,
+                                        timestamp integer
                                     ); """
     create_table(conn,sql_create_iot_table)
