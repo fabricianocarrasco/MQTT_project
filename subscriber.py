@@ -21,20 +21,23 @@ client.username_pw_set(username=client_id, password=client_pwd)
 print("Connecting...")
 client.connect(broker_address, broker_port)  # connect to broker
 # Connection to DB
-conn = sqlite3.connect(":memory:")
+conn = sqlite3.connect("data/sensor_data.db")
 
 
 mean = None
 std = None
 
 
-def update_variables(conn):
+def update_variables():
     time.sleep(1)
+    conn = sqlite3.connect("data/sensor_data.db")
+    # conn = create_connection()
     sql = 'SELECT AVG(value) FROM iot ORDER BY timestamp DESC LIMIT 1000'
     cur = conn.cursor()
-    mean = cur.execute(sql)
+    mean = cur.execute(sql).fetchall()[0][0]
     print(mean)
     conn.commit()
+    conn.close()
 
 
 def filter_outliers(datos):
@@ -94,12 +97,6 @@ def on_message(client, userdata, message):
     print(row_id)
     # conn.
 
-def first_thousand(client, userdata, message):
-
-    print('Primeros 1000')
-    # conn.
-
-
 def on_connect(client, userdata, flags, rc):
     print("Connected")
     client.subscribe(topic)
@@ -107,9 +104,9 @@ def on_connect(client, userdata, flags, rc):
 
 
 dict_thousand = {}
-client.on_message = first_thousand
+client.on_message = on_message
 client.on_connect = on_connect
-conn = create_connection()
+# conn = create_connection()
 sql_create_iot_table = """ CREATE TABLE IF NOT EXISTS iot(
                                     id text PRIMARY KEY,
                                     sensor_id text,
@@ -127,12 +124,12 @@ class myClassA(threading.Thread):
         self.start()
     def run(self):
         while True:
-            update_variables(conn)
+            update_variables()
 
 myClassA()
 
 while True:
-    client.loop_start()
+    client.loop_forever()
     
 
 
