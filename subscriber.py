@@ -4,6 +4,8 @@ import numpy as np
 import json
 import time
 from database import create_connection, create_table
+import threading
+
 
 broker_address = "localhost"
 broker_address = "300de1d0fce741319264fb560810a851.s2.eu.hivemq.cloud"
@@ -22,11 +24,24 @@ client.connect(broker_address, broker_port)  # connect to broker
 conn = sqlite3.connect(":memory:")
 
 
+mean = None
+std = None
+
+
+def update_variables(conn):
+    time.sleep(1)
+    sql = 'SELECT AVG(value) FROM iot ORDER BY timestamp DESC LIMIT 1000'
+    cur = conn.cursor()
+    mean = cur.execute(sql)
+    print(mean)
+    conn.commit()
+
+
 def filter_outliers(datos):
     # Calcular el valor medio y la desviación estándar de la columna de valores
     mean = 50
-    varianza = 100 ** (2) / 12
-    std = varianza**0.5
+    variance = 100 ** (2) / 12
+    std = variance**0.5
 
     # Identificar los valores que están fuera de 3 desviaciones estándar del valor medio
     low = mean - 3 * std
@@ -79,9 +94,9 @@ def on_message(client, userdata, message):
     print(row_id)
     # conn.
 
-
 def first_thousand(client, userdata, message):
-    cont += 1
+
+    print('Primeros 1000')
     # conn.
 
 
@@ -90,9 +105,9 @@ def on_connect(client, userdata, flags, rc):
     client.subscribe(topic)
 
 
-cont = 0
+
 dict_thousand = {}
-client.on_message = on_message
+client.on_message = first_thousand
 client.on_connect = on_connect
 conn = create_connection()
 sql_create_iot_table = """ CREATE TABLE IF NOT EXISTS iot(
@@ -103,8 +118,22 @@ sql_create_iot_table = """ CREATE TABLE IF NOT EXISTS iot(
                                     timestamp integer
                                 ); """
 create_table(conn,sql_create_iot_table)
+
+
+class myClassA(threading.Thread):
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self.start()
+    def run(self):
+        while True:
+            update_variables(conn)
+
+myClassA()
+
 while True:
-    client.loop_forever()
+    client.loop_start()
+    
 
 
 # if __name__ == "__main__":
