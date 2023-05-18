@@ -24,52 +24,67 @@ client.connect(broker_address, broker_port)  # connect to broker
 conn = sqlite3.connect("data/sensor_data.db")
 
 
-mean = None
-std = None
+mean_g = None
+std_g = None
 
 
 def update_variables():
+    global mean_g
+    global std_g
+
     time.sleep(1)
     conn = sqlite3.connect("data/sensor_data.db")
     # conn = create_connection()
-    sql = 'SELECT AVG(value) FROM iot ORDER BY timestamp DESC LIMIT 1000'
+    sql = """SELECT AVG(value) as mean,SUM((value-(SELECT AVG(value) FROM iot))*
+           (value-(SELECT AVG(value) FROM iot)) ) / (COUNT(value)-1) AS var 
+           FROM iot ORDER BY timestamp DESC LIMIT 1000"""
     cur = conn.cursor()
-    mean = cur.execute(sql).fetchall()[0][0]
-    print(mean)
+    data = cur.execute(sql).fetchall()[0]
+    mean_g = data[0]
+    std_g = data[1]**0.5
+    print(mean_g,std_g)
+    # mean_g = mean
+
     conn.commit()
     conn.close()
 
 
-def filter_outliers(datos):
-    # Calcular el valor medio y la desviación estándar de la columna de valores
-    mean = 50
-    variance = 100 ** (2) / 12
-    std = variance**0.5
+def detect_outlier(sensor_data):
+    global mean_g
+    global std_g
 
+    if not (mean_g and std_g):
+        return False
+    
     # Identificar los valores que están fuera de 3 desviaciones estándar del valor medio
-    low = mean - 3 * std
-    high = mean + 3 * std
+    low = mean_g - 3 * std_g
+    high = mean_g + 3 * std_g
 
     # Filtrar los valores
-    valores_filtrados = [v if low <= v <= high else np.nan for v in datos]
-
-    # Eliminar los valores faltantes (NaN)
-    datos_filtrados = []
-    for i in range(len(datos)):
-        if not np.isnan(valores_filtrados[i]):
-            datos_filtrados.append(datos[i])
-
-    # Retornar los datos filtrados
-    return datos_filtrados
-
+    if low <= sensor_data <= high:
+        return True
+    else: 
+        return False
 
 def create_sensor_data(sensor_data):
+    global mean_g
+    global std_g
     """
     Create a new sensor_data
     :param conn:
     :param sensor_data:
     :return:
     """
+    if not (mean_g and std_g):
+        sql = """ INSERT INTO iot(id,sensor_id,sensor_type,value,timestamp)
+              VALUES(?,?,?,?,?) """
+        cur = conn.cursor()
+        cur.execute(sql, sensor_data)
+        conn.commit() 
+        return "First second"
+    
+    if not detect_outlier(sensor_data[3]):
+        return "Outlier"
 
     sql = """ INSERT INTO iot(id,sensor_id,sensor_type,value,timestamp)
               VALUES(?,?,?,?,?) """
@@ -97,10 +112,10 @@ def on_message(client, userdata, message):
     print(row_id)
     # conn.
 
+
 def on_connect(client, userdata, flags, rc):
     print("Connected")
     client.subscribe(topic)
-
 
 
 dict_thousand = {}
@@ -114,7 +129,7 @@ sql_create_iot_table = """ CREATE TABLE IF NOT EXISTS iot(
                                     value integer,
                                     timestamp integer
                                 ); """
-create_table(conn,sql_create_iot_table)
+create_table(conn, sql_create_iot_table)
 
 
 class myClassA(threading.Thread):
@@ -122,15 +137,16 @@ class myClassA(threading.Thread):
         threading.Thread.__init__(self)
         self.daemon = True
         self.start()
+
     def run(self):
         while True:
             update_variables()
+
 
 myClassA()
 
 while True:
     client.loop_forever()
-    
 
 
 # if __name__ == "__main__":
